@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>AR Circuit Lab - Mobile Experiment 1</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <style>
+      #ui-panel {
+        position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.85); color: white; padding: 12px;
+        border-radius: 12px; font-family: sans-serif; text-align: center; z-index: 1000;
+        width: 90%; max-width: 400px; border: 2px solid #3498db;
+      }
+      .btn { padding: 12px; margin: 5px; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; flex: 1; }
+      #run-btn { background: #27ae60; }
+      #reset-btn { background: #e67e22; }
+      .button-row { display: flex; justify-content: space-around; }
+    </style>
+  </head>
+
+  <body style="margin: 0; overflow: hidden;">
+    <div id="ui-panel">
+      <div id="status" style="font-size: 14px;">MOBILE EXP 1: Series Circuit</div>
+      <div id="meters" style="color: #3498db; margin: 5px 0; font-family: monospace; font-size: 16px;">0.00V | 0.00mA</div>
+      <div class="button-row">
+        <button id="run-btn" class="btn" onclick="validateExperiment()">RUN</button>
+        <button id="reset-btn" class="btn" onclick="resetPositions()">RESET</button>
+      </div>
+    </div>
+
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" cursor="rayOrigin: mouse" raycaster="objects: .clickable">
+      
+      <a-assets>
+        <a-asset-item id="breadboard-mtl" src="breadboard_arduino.glb"></a-asset-item>
+        <a-asset-item id="battery-mtl" src="9v_battery.glb"></a-asset-item>
+        <audio id="success-sound" src="https://cdn.freesound.org/previews/171/171671_2437358-lq.mp3" preload="auto"></audio>
+        <audio id="explode-sound" src="https://cdn.freesound.org/previews/511/511484_10226317-lq.mp3" preload="auto"></audio>
+      </a-assets>
+
+      <a-marker preset="hiro">
+        <a-entity light="type: ambient; intensity: 2.8;"></a-entity>
+        <a-entity light="type: directional; intensity: 1.2;" position="1 4 1"></a-entity>
+
+        <a-entity id="breadboard" gltf-model="#breadboard-mtl" scale="4 4 4" position="0 0 0" rotation="-90 0 0"></a-entity>
+
+        <a-entity id="resistor" class="clickable" position="0 0.1 0.3" rotation="0 0 90" drag-logic>
+            <a-cylinder radius="0.012" height="0.12" color="#d2b48c"></a-cylinder> 
+            <a-cylinder radius="0.003" height="0.25" color="#aaa"></a-cylinder>
+        </a-entity>
+
+        <a-entity id="led" class="clickable" position="0.2 0.15 0.2" drag-logic>
+            <a-cylinder id="led-body" radius="0.025" height="0.04" color="#ff0000" material="emissive: #ff0000; emissiveIntensity: 0.5"></a-cylinder>
+            <a-sphere id="led-top" radius="0.025" position="0 0.02 0" color="#ff0000"></a-sphere>
+            <a-light id="led-glow" type="point" intensity="0" color="red" position="0 0.1 0"></a-light>
+            <a-sphere id="smoke" radius="0.03" color="#333" visible="false" position="0 0.05 0" animation="property: scale; to: 5 5 5; dur: 800; easing: easeOutQuad; loop: false"></a-sphere>
+        </a-entity>
+
+        <a-entity id="battery" class="clickable" gltf-model="#battery-mtl" position="-0.5 0.15 0.3" scale="5 5 5" drag-logic></a-entity>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+      AFRAME.registerComponent('drag-logic', {
+        init: function () {
+          this.dragging = false;
+
+          const startDrag = (e) => { 
+            this.dragging = true; 
+            // Scale feedback for touch
+            this.el.setAttribute('scale', (this.el.id === 'battery' ? '6 6 6' : '1.4 1.4 1.4')); 
+          };
+
+          this.el.addEventListener('mousedown', startDrag);
+          this.el.addEventListener('touchstart', startDrag);
+          
+          const stopDrag = () => { 
+            this.dragging = false; 
+            if (this.el.id === 'battery') this.el.setAttribute('scale', '5 5 5'); 
+            else this.el.setAttribute('scale', '1 1 1'); 
+          };
+
+          window.addEventListener('mouseup', stopDrag);
+          window.addEventListener('touchend', stopDrag);
+
+          const handleMove = (e) => {
+            if (!this.dragging) return;
+            
+            // Mobile touch point logic
+            let clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+            let clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+
+            let mouse = new THREE.Vector2((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
+            let raycaster = new THREE.Raycaster();
+            let camera = document.querySelector('[camera]').getObject3D('camera');
+            raycaster.setFromCamera(mouse, camera);
+            
+            let plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+            let target = new THREE.Vector3();
+            raycaster.ray.intersectPlane(plane, target);
+            
+            this.el.setAttribute('position', {x: target.x, y: (this.el.id === 'led' ? 0.15 : 0.1), z: target.z});
+          };
+
+          window.addEventListener('mousemove', handleMove);
+          window.addEventListener('touchmove', handleMove);
+        }
+      });
+
+      function validateExperiment() {
+        const ledPos = document.querySelector('#led').object3D.position;
+        const resPos = document.querySelector('#resistor').object3D.position;
+        const batPos = document.querySelector('#battery').object3D.position;
+        
+        if (ledPos.distanceTo(resPos) < 0.3 && resPos.distanceTo(batPos) < 0.4) {
+          document.querySelector('#status').innerText = "✅ EXPERIMENT SUCCESS";
+          document.querySelector('#status').style.color = "#2ecc71";
+          document.querySelector('#led-glow').setAttribute('intensity', '3');
+          document.getElementById('success-sound').play();
+        } else if (ledPos.distanceTo(batPos) < 0.3 && ledPos.distanceTo(resPos) > 0.5) {
+          document.querySelector('#status').innerText = "💥 OVERLOAD!";
+          document.querySelector('#led-body').setAttribute('color', '#111');
+          document.querySelector('#led-top').setAttribute('color', '#111');
+          document.querySelector('#smoke').setAttribute('visible', 'true');
+          document.getElementById('explode-sound').play();
+        } else {
+          document.querySelector('#status').innerText = "❌ INCOMPLETE";
+        }
+      }
+
+      function resetPositions() {
+        location.reload();
+      }
+    </script>
+  </body>
+</html>
