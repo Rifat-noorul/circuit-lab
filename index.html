@@ -1,136 +1,802 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>AR Circuit Lab - Mobile Experiment 1</title>
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <title>ZapSetup - AR Lab</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
     <style>
-      #ui-panel {
-        position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.85); color: white; padding: 12px;
-        border-radius: 12px; font-family: sans-serif; text-align: center; z-index: 1000;
-        width: 90%; max-width: 400px; border: 2px solid #3498db;
+      :root {
+        --glass-bg: rgba(20, 20, 20, 0.85);
+        --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+        --accent-color: #3b82f6; 
+        --success-color: #10b981;
+        --danger-color: #ef4444; 
+        --text-color: #ffffff;
       }
-      .btn { padding: 12px; margin: 5px; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; flex: 1; }
-      #run-btn { background: #27ae60; }
-      #reset-btn { background: #e67e22; }
-      .button-row { display: flex; justify-content: space-around; }
+
+      body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; user-select: none; color: white; }
+
+      /* --- MAIN MENU --- */
+      #main-menu {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(10, 10, 15, 0.95);
+        z-index: 5000; display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        backdrop-filter: blur(15px);
+      }
+      .menu-container { text-align: center; max-width: 400px; width: 90%; }
+      .menu-title {
+        font-size: 40px; font-weight: 800; 
+        background: linear-gradient(to right, #3b82f6, #10b981);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+      }
+      .menu-subtitle { color: #9ca3af; margin-bottom: 40px; font-size: 14px; }
+      .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+      .menu-btn {
+        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+        color: white; padding: 20px; border-radius: 16px;
+        cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; 
+        align-items: center; justify-content: center; gap: 10px;
+      }
+      .menu-btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-3px); border-color: var(--accent-color); }
+      .menu-btn.large { grid-column: span 2; background: var(--accent-color); border: none; font-weight: 800; font-size: 18px; }
+      .menu-icon { font-size: 24px; }
+
+      /* --- SCANNER UI --- */
+      #scanner-ui {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 6000; background: rgba(0,0,0,0.5);
+        flex-direction: column; align-items: center; padding-top: 50px;
+      }
+      #search-bar-container {
+        display: flex; gap: 10px; width: 90%; max-width: 400px;
+      }
+      #component-search {
+        flex: 1; padding: 15px; border-radius: 50px; border: none;
+        background: white; color: #111; font-size: 16px; font-family: 'Inter', sans-serif;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3); outline: none;
+      }
+      #search-btn {
+        background: var(--accent-color); color: white; border: none; padding: 0 20px;
+        border-radius: 50px; font-weight: bold; cursor: pointer;
+      }
+      #close-scanner-btn {
+        position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5);
+        color: white; border: 1px solid rgba(255,255,255,0.3); width: 40px; height: 40px;
+        border-radius: 50%; cursor: pointer; font-size: 20px;
+      }
+      #result-card {
+        margin-top: 20px; background: white; color: #111; padding: 20px;
+        border-radius: 20px; width: 85%; max-width: 350px; display: none;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: left;
+        animation: slideUp 0.3s ease-out;
+      }
+      @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      .res-title { font-weight: 800; font-size: 22px; margin-bottom: 5px; color: var(--accent-color); }
+      .res-desc { color: #555; font-size: 14px; line-height: 1.5; }
+
+      /* --- GAME UI --- */
+      .game-ui { display: none; opacity: 0; transition: opacity 0.5s; }
+      .game-ui.visible { display: flex; opacity: 1; }
+
+      /* --- TOP BAR --- */
+      #top-bar {
+        position: fixed; top: 20px; left: 20px; right: 20px;
+        justify-content: space-between; align-items: flex-start;
+        z-index: 2000; pointer-events: none;
+      }
+      #status-pill {
+        pointer-events: auto; background: var(--glass-bg); backdrop-filter: blur(10px);
+        padding: 10px 20px; border-radius: 50px; border: var(--glass-border);
+        font-weight: 600; font-size: 13px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        display: flex; align-items: center; gap: 8px;
+      }
+      #level-badge {
+        background: var(--accent-color); color: white; padding: 2px 8px;
+        border-radius: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; margin-right: 5px;
+      }
+
+      /* --- MULTIMETER --- */
+      #multimeter {
+        pointer-events: auto; background: #1f2937;
+        border: 2px solid #374151; border-radius: 12px;
+        padding: 8px; width: 130px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        display: flex; flex-direction: column; gap: 5px;
+      }
+      #lcd-screen {
+        background: #9ca3af; color: #111; font-family: 'Courier New', monospace; font-weight: 800; 
+        font-size: 18px; text-align: right; padding: 4px 8px; border-radius: 4px; border: 2px inset rgba(0,0,0,0.1);
+      }
+      .meter-row { display: flex; justify-content: space-between; align-items: center; }
+      .label { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; }
+      #mode-btn {
+        background: #374151; border: 1px solid #4b5563; color: white; font-size: 9px; padding: 2px 6px; 
+        border-radius: 4px; cursor: pointer; font-weight: bold;
+      }
+      #tool-cluster { display: flex; gap: 10px; pointer-events: auto; }
+      .tool-btn {
+        background: #4b5563; color: white; border: none; width: 40px; height: 40px; border-radius: 12px;
+        font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s;
+      }
+      .tool-btn:active { transform: scale(0.9); }
+      #reset-btn { background: #ef4444; }
+
+      /* --- COMPONENT MENU --- */
+      #component-menu {
+        position: fixed; left: 20px; top: 50%; transform: translateY(-50%);
+        flex-direction: column; gap: 10px; z-index: 2000;
+        max-height: 80vh; overflow-y: auto; padding-right: 5px;
+      }
+      .comp-btn {
+        width: 55px; height: 55px; background: var(--glass-bg); backdrop-filter: blur(12px);
+        border: var(--glass-border); border-radius: 14px; cursor: pointer; transition: all 0.2s;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        color: rgba(255,255,255,0.7); flex-shrink: 0;
+      }
+      .comp-btn span { font-size: 20px; margin-bottom: 2px; }
+      .comp-btn small { font-size: 7px; font-weight: 600; text-transform: uppercase; }
+      .comp-btn.active {
+        background: var(--accent-color); color: white; transform: scale(1.1);
+        border: 1px solid rgba(255,255,255,0.4);
+      }
+      .locked { display: none; }
+
+      /* --- BOTTOM CONTROLS --- */
+      #bottom-bar {
+        position: fixed; bottom: 30px; left: 20px; right: 20px;
+        justify-content: space-between; align-items: flex-end;
+        z-index: 2000; pointer-events: none;
+      }
+      #action-cluster { pointer-events: auto; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+      .action-btn {
+        background: var(--glass-bg); backdrop-filter: blur(10px); border: var(--glass-border); color: white;
+        padding: 10px 18px; border-radius: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;
+        font-size: 13px; transition: 0.2s;
+      }
+      #resistor-box {
+        background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px; border-radius: 16px; 
+        border: var(--glass-border); width: 180px; display: none;
+      }
+      input[type=range] { width: 100%; cursor: pointer; }
+
+      #dpad {
+        pointer-events: auto; display: grid; grid-template-columns: repeat(3, 45px); grid-template-rows: repeat(3, 45px);
+        gap: 5px; background: rgba(0,0,0,0.4); padding: 5px; border-radius: 25px; backdrop-filter: blur(5px);
+      }
+      .d-btn {
+        background: rgba(255,255,255,0.1); border: none; border-radius: 12px; color: white; font-size: 20px; 
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+      }
+      .d-btn:active { background: var(--accent-color); }
+      #btn-up { grid-column: 2; grid-row: 1; }
+      #btn-left { grid-column: 1; grid-row: 2; }
+      #btn-right { grid-column: 3; grid-row: 2; }
+      #btn-down { grid-column: 2; grid-row: 3; }
+      #btn-rotate { grid-column: 2; grid-row: 2; font-size: 18px; background: rgba(255,255,255,0.2); }
+
+      /* MODAL */
+      #celebration-modal {
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 3000; justify-content: center; align-items: center; animation: fadeIn 0.3s;
+      }
+      .modal-card {
+        position: relative;
+        background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(20px); border: 2px solid var(--success-color); 
+        padding: 40px; border-radius: 24px; text-align: center; width: 300px;
+        box-shadow: 0 0 50px rgba(16, 185, 129, 0.3);
+      }
+      #modal-action-btn {
+        background: var(--success-color); border: none; color: white; padding: 15px 30px; border-radius: 50px; 
+        font-weight: 800; font-size: 16px; margin-top: 20px; cursor: pointer; 
+        box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4); transition: transform 0.2s;
+      }
+      #modal-action-btn:hover { transform: scale(1.05); }
+
+      .close-modal-btn {
+        position: absolute; top: 10px; right: 15px;
+        background: transparent; border: none; color: #9ca3af;
+        font-size: 28px; line-height: 1; cursor: pointer; transition: color 0.2s;
+      }
+      .close-modal-btn:hover { color: white; }
     </style>
   </head>
 
-  <body style="margin: 0; overflow: hidden;">
-    <div id="ui-panel">
-      <div id="status" style="font-size: 14px;">MOBILE EXP 1: Series Circuit</div>
-      <div id="meters" style="color: #3498db; margin: 5px 0; font-family: monospace; font-size: 16px;">0.00V | 0.00mA</div>
-      <div class="button-row">
-        <button id="run-btn" class="btn" onclick="validateExperiment()">RUN</button>
-        <button id="reset-btn" class="btn" onclick="resetPositions()">RESET</button>
-      </div>
+  <body>
+    <audio id="click-sound" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"></audio> 
+
+    <div id="main-menu">
+        <div class="menu-container">
+            <div class="menu-title">ZapSetup - AR Lab</div>
+            <div class="menu-subtitle">Interactive Electronics Workbench</div>
+            
+            <div class="menu-grid">
+                <button class="menu-btn large" onclick="startCourse('all')">
+                    <span class="menu-icon">🚀</span>
+                    <span>START FULL COURSE</span>
+                    <span style="font-size:10px; opacity:0.7; font-weight:400">Levels 1 - 3</span>
+                </button>
+                <button class="menu-btn" onclick="startCourse(1)"><span class="menu-icon">⚡</span><span>Series</span></button>
+                <button class="menu-btn" onclick="startCourse(2)"><span class="menu-icon">🔀</span><span>Parallel</span></button>
+                <button class="menu-btn" onclick="startCourse(3)"><span class="menu-icon">🔊</span><span>Buzzer Lab</span></button>
+                <button class="menu-btn large" onclick="openScanner()">
+                    <span class="menu-icon">🔍</span>
+                    <span>SEARCH TOOLS</span>
+                    <span style="font-size:10px; opacity:0.7; font-weight:400">Identify Components</span>
+                </button>
+            </div>
+        </div>
     </div>
 
-    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" cursor="rayOrigin: mouse" raycaster="objects: .clickable">
+    <div id="scanner-ui">
+        <button id="close-scanner-btn" onclick="closeScanner()">×</button>
+        <div id="search-bar-container">
+            <input type="text" id="component-search" placeholder="Type tool name (e.g., Cutter, Battery)...">
+            <button id="search-btn" onclick="performSearch()">GO</button>
+        </div>
+        <div id="result-card"></div>
+    </div>
+
+    <div id="top-bar" class="game-ui">
+        <div id="status-pill">
+            <span id="level-badge">LVL 1</span>
+            <span id="status-text">Connect the Series Circuit</span>
+        </div>
+        
+        <div style="display:flex; gap:10px; align-items:center;">
+            <div id="multimeter">
+                <div id="lcd-screen">0.0</div>
+                <div class="meter-row">
+                    <div class="label" id="meter-label">CURRENT (mA)</div>
+                    <button id="mode-btn" onclick="toggleMeterMode()">MODE</button>
+                </div>
+            </div>
+            <div id="tool-cluster">
+                <button class="tool-btn" id="reset-btn" onclick="loadLevelConfig()">↺</button>
+                <button class="tool-btn" onclick="showMainMenu()">🏠</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="component-menu" class="game-ui">
+      <button class="comp-btn" onclick="selectPart('battery')" id="btn-battery"><span>🔋</span><small>Bat</small></button>
+      <button class="comp-btn" onclick="selectPart('switch')" id="btn-switch"><span>🕹️</span><small>Sw</small></button>
+      <button class="comp-btn" onclick="selectPart('resistor1')" id="btn-resistor1"><span>〰️</span><small>Res 1</small></button>
+      <button class="comp-btn" onclick="selectPart('led1')" id="btn-led1"><span>💡</span><small>LED 1</small></button>
       
+      <button class="comp-btn locked" onclick="selectPart('resistor2')" id="btn-resistor2"><span>〰️</span><small>Res 2</small></button>
+      <button class="comp-btn locked" onclick="selectPart('led2')" id="btn-led2"><span>💡</span><small>LED 2</small></button>
+      <button class="comp-btn locked" onclick="selectPart('buzzer')" id="btn-buzzer"><span>🔊</span><small>Buzz</small></button>
+    </div>
+
+    <div id="bottom-bar" class="game-ui">
+        <div id="action-cluster">
+            <div id="resistor-box">
+                 <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px;">
+                     <span id="res-label">Resistance</span><span id="res-val" style="color:var(--accent-color); font-weight:bold;">220 Ω</span>
+                 </div>
+                 <input type="range" id="res-slider" min="100" max="2000" value="220" step="50" oninput="updateResistance(this.value)">
+            </div>
+            <button id="btn-toggle-switch" class="action-btn" onclick="toggleSwitch()" style="display:none; border-color: var(--accent-color);">
+                <span>🔘</span> PUSH BUTTON
+            </button>
+            <button class="action-btn" onclick="toggleExplode()"><span>🔍</span> EXPLODE</button>
+        </div>
+        <div id="dpad">
+            <button id="btn-up" class="d-btn" onclick="movePart('up')">▲</button>
+            <button id="btn-left" class="d-btn" onclick="movePart('left')">◀</button>
+            <button id="btn-rotate" class="d-btn" onclick="rotatePart()">↻</button>
+            <button id="btn-right" class="d-btn" onclick="movePart('right')">▶</button>
+            <button id="btn-down" class="d-btn" onclick="movePart('down')">▼</button>
+        </div>
+    </div>
+
+    <div id="celebration-modal">
+        <div class="modal-card">
+            <button class="close-modal-btn" onclick="closeModal()">×</button>
+            <div style="font-size: 50px; margin-bottom: 10px;">🎉</div>
+            <h2 style="margin:0; color: var(--success-color);">SUCCESS!</h2>
+            <p id="modal-msg" style="color: #ccc; margin-top: 10px;">Circuit Functional.</p>
+            <button id="modal-action-btn" onclick="handleLevelComplete()">NEXT LEVEL ➡️</button>
+        </div>
+    </div>
+
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;" renderer="logarithmicDepthBuffer: true;">
       <a-assets>
-        <a-asset-item id="breadboard-mtl" src="breadboard_arduino.glb"></a-asset-item>
-        <a-asset-item id="battery-mtl" src="9v_battery.glb"></a-asset-item>
-        <audio id="success-sound" src="https://cdn.freesound.org/previews/171/171671_2437358-lq.mp3" preload="auto"></audio>
-        <audio id="explode-sound" src="https://cdn.freesound.org/previews/511/511484_10226317-lq.mp3" preload="auto"></audio>
+          <a-asset-item id="battery-glb" src="9v_battery.glb"></a-asset-item>
+          <a-asset-item id="buzzer-glb" src="buzzer_passivo.glb"></a-asset-item>
       </a-assets>
 
       <a-marker preset="hiro">
-        <a-entity light="type: ambient; intensity: 2.8;"></a-entity>
-        <a-entity light="type: directional; intensity: 1.2;" position="1 4 1"></a-entity>
+        <a-entity light="type: directional; castShadow:true; intensity: 1; position: 1 2 1;"></a-entity>
+        <a-entity light="type: ambient; intensity: 1.2;"></a-entity>
+        
+        <a-box id="breadboard-base" position="0 -0.05 0" width="2.2" depth="1.5" height="0.05" color="#555555" roughness="1">
+            <a-entity position="0 0.026 0" rotation="-90 0 0"><a-plane width="2.1" height="1.4" color="#444" material="wireframe: true;"></a-plane></a-entity>
+        </a-box>
 
-        <a-entity id="breadboard" gltf-model="#breadboard-mtl" scale="4 4 4" position="0 0 0" rotation="-90 0 0"></a-entity>
-
-        <a-entity id="resistor" class="clickable" position="0 0.1 0.3" rotation="0 0 90" drag-logic>
-            <a-cylinder radius="0.012" height="0.12" color="#d2b48c"></a-cylinder> 
-            <a-cylinder radius="0.003" height="0.25" color="#aaa"></a-cylinder>
+        <a-entity id="battery" gltf-model="#battery-glb" position="-3 0 0" scale="12 12 12"></a-entity>
+        
+        <a-entity id="switch" position="-3 0 0" scale="0.5 0.5 0.5">
+            <a-box position="0 0.05 0" width="0.4" height="0.1" depth="0.4" color="#2c3e50"></a-box>
+            <a-cylinder id="switch-button" position="0 0.16 0" radius="0.1" height="0.12" color="#e74c3c"></a-cylinder>
+            <a-text value="SW" position="-0.3 0.1 0" rotation="-90 0 0" scale="2 2 2"></a-text>
         </a-entity>
 
-        <a-entity id="led" class="clickable" position="0.2 0.15 0.2" drag-logic>
-            <a-cylinder id="led-body" radius="0.025" height="0.04" color="#ff0000" material="emissive: #ff0000; emissiveIntensity: 0.5"></a-cylinder>
-            <a-sphere id="led-top" radius="0.025" position="0 0.02 0" color="#ff0000"></a-sphere>
-            <a-light id="led-glow" type="point" intensity="0" color="red" position="0 0.1 0"></a-light>
-            <a-sphere id="smoke" radius="0.03" color="#333" visible="false" position="0 0.05 0" animation="property: scale; to: 5 5 5; dur: 800; easing: easeOutQuad; loop: false"></a-sphere>
+        <a-entity id="resistor1" position="-3 0 0" rotation="0 0 90">
+            <a-cylinder radius="0.03" height="0.3" color="#d2b48c">
+                 <a-torus id="r1-band1" radius="0.03" radius-tubular="0.005" color="red" position="0 0.05 0" rotation="90 0 0"></a-torus>
+                 <a-torus id="r1-band2" radius="0.03" radius-tubular="0.005" color="black" position="0 0 0" rotation="90 0 0"></a-torus>
+                 <a-torus id="r1-band3" radius="0.03" radius-tubular="0.005" color="orange" position="0 -0.05 0" rotation="90 0 0"></a-torus>
+            </a-cylinder>
+            <a-cylinder radius="0.005" height="0.6" color="#aaa"></a-cylinder>
         </a-entity>
 
-        <a-entity id="battery" class="clickable" gltf-model="#battery-mtl" position="-0.5 0.15 0.3" scale="5 5 5" drag-logic></a-entity>
+        <a-entity id="led1" position="-3 0 0">
+            <a-cylinder radius="0.05" height="0.1" color="#c0392b"></a-cylinder>
+            <a-sphere id="led1-bulb" radius="0.05" position="0 0.05 0" color="#e74c3c" opacity="0.9"></a-sphere>
+            <a-light id="led1-glow" type="point" intensity="0" distance="2" decay="2" color="#ff0000" position="0 0.2 0"></a-light>
+        </a-entity>
+
+        <a-entity id="resistor2" position="-3 0 0" rotation="0 0 90" visible="false">
+            <a-cylinder radius="0.03" height="0.3" color="#d2b48c">
+                 <a-torus id="r2-band1" radius="0.03" radius-tubular="0.005" color="brown" position="0 0.05 0" rotation="90 0 0"></a-torus>
+                 <a-torus id="r2-band2" radius="0.03" radius-tubular="0.005" color="black" position="0 0 0" rotation="90 0 0"></a-torus>
+                 <a-torus id="r2-band3" radius="0.03" radius-tubular="0.005" color="red" position="0 -0.05 0" rotation="90 0 0"></a-torus>
+            </a-cylinder>
+            <a-cylinder radius="0.005" height="0.6" color="#aaa"></a-cylinder>
+        </a-entity>
+
+        <a-entity id="led2" position="-3 0 0" visible="false">
+            <a-cylinder radius="0.05" height="0.1" color="#c0392b"></a-cylinder>
+            <a-sphere id="led2-bulb" radius="0.05" position="0 0.05 0" color="#e74c3c" opacity="0.9"></a-sphere>
+            <a-light id="led2-glow" type="point" intensity="0" distance="2" decay="2" color="#ff0000" position="0 0.2 0"></a-light>
+        </a-entity>
+
+        <a-entity id="buzzer" gltf-model="#buzzer-glb" position="-3 0 0" visible="false" scale="6 6 6"></a-entity>
+
+        <a-entity id="wires-container"></a-entity>
       </a-marker>
-
       <a-entity camera></a-entity>
     </a-scene>
 
     <script>
-      AFRAME.registerComponent('drag-logic', {
-        init: function () {
-          this.dragging = false;
+      let currentLevel = 1;
+      let gameMode = 'all';
+      let activePartId = null;
+      let isSwitchOn = false;
+      let isExploded = false;
+      let resistances = { 'resistor1': 220, 'resistor2': 220 };
+      let meterMode = 'mA'; 
+      
+      const connectDist = 1.2; 
+      const gridSize = 0.2; 
+      const clickSound = document.getElementById('click-sound');
+      
+      // TOOL DATABASE
+      const toolDB = {
+          "cutter": { title: "Wire Cutter", desc: "Used to strip insulation and cut wires to length." },
+          "wire cutter": { title: "Wire Cutter", desc: "Used to strip insulation and cut wires to length." },
+          "stripper": { title: "Wire Stripper", desc: "Removes insulation from electric wires." },
+          "battery": { title: "9V Battery", desc: "Provides DC voltage source for circuits." },
+          "resistor": { title: "Resistor", desc: "Limits the flow of electric current." },
+          "led": { title: "LED", desc: "Light Emitting Diode. Lights up when current flows." },
+          "breadboard": { title: "Breadboard", desc: "Used for prototyping electronics without soldering." },
+          "multimeter": { title: "Multimeter", desc: "Measures Voltage, Current, and Resistance." },
+          "buzzer": { title: "Buzzer", desc: "Produces sound when current flows." },
+          "switch": { title: "Push Button", desc: "Completes or breaks the circuit when pressed." }
+      };
 
-          const startDrag = (e) => { 
-            this.dragging = true; 
-            // Scale feedback for touch
-            this.el.setAttribute('scale', (this.el.id === 'battery' ? '6 6 6' : '1.4 1.4 1.4')); 
-          };
-
-          this.el.addEventListener('mousedown', startDrag);
-          this.el.addEventListener('touchstart', startDrag);
-          
-          const stopDrag = () => { 
-            this.dragging = false; 
-            if (this.el.id === 'battery') this.el.setAttribute('scale', '5 5 5'); 
-            else this.el.setAttribute('scale', '1 1 1'); 
-          };
-
-          window.addEventListener('mouseup', stopDrag);
-          window.addEventListener('touchend', stopDrag);
-
-          const handleMove = (e) => {
-            if (!this.dragging) return;
-            
-            // Mobile touch point logic
-            let clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-            let clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-
-            let mouse = new THREE.Vector2((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
-            let raycaster = new THREE.Raycaster();
-            let camera = document.querySelector('[camera]').getObject3D('camera');
-            raycaster.setFromCamera(mouse, camera);
-            
-            let plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-            let target = new THREE.Vector3();
-            raycaster.ray.intersectPlane(plane, target);
-            
-            this.el.setAttribute('position', {x: target.x, y: (this.el.id === 'led' ? 0.15 : 0.1), z: target.z});
-          };
-
-          window.addEventListener('mousemove', handleMove);
-          window.addEventListener('touchmove', handleMove);
-        }
-      });
-
-      function validateExperiment() {
-        const ledPos = document.querySelector('#led').object3D.position;
-        const resPos = document.querySelector('#resistor').object3D.position;
-        const batPos = document.querySelector('#battery').object3D.position;
-        
-        if (ledPos.distanceTo(resPos) < 0.3 && resPos.distanceTo(batPos) < 0.4) {
-          document.querySelector('#status').innerText = "✅ EXPERIMENT SUCCESS";
-          document.querySelector('#status').style.color = "#2ecc71";
-          document.querySelector('#led-glow').setAttribute('intensity', '3');
-          document.getElementById('success-sound').play();
-        } else if (ledPos.distanceTo(batPos) < 0.3 && ledPos.distanceTo(resPos) > 0.5) {
-          document.querySelector('#status').innerText = "💥 OVERLOAD!";
-          document.querySelector('#led-body').setAttribute('color', '#111');
-          document.querySelector('#led-top').setAttribute('color', '#111');
-          document.querySelector('#smoke').setAttribute('visible', 'true');
-          document.getElementById('explode-sound').play();
-        } else {
-          document.querySelector('#status').innerText = "❌ INCOMPLETE";
-        }
+      // AUDIO
+      let audioCtx, oscillator, isBuzzing = false;
+      function startBuzzer() {
+          if(isBuzzing) return;
+          try {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            oscillator = audioCtx.createOscillator();
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); 
+            oscillator.connect(audioCtx.destination);
+            oscillator.start();
+            isBuzzing = true;
+          } catch(e) { console.warn("Audio context error"); }
+      }
+      function stopBuzzer() {
+          if(oscillator) { try { oscillator.stop(); oscillator.disconnect(); } catch(e){} oscillator = null; }
+          isBuzzing = false;
       }
 
-      function resetPositions() {
-        location.reload();
+      const wireContainer = document.getElementById('wires-container');
+      for(let i=0; i<15; i++) {
+          let w = document.createElement('a-entity');
+          w.setAttribute('id', 'wire'+i);
+          w.setAttribute('line', 'opacity: 0');
+          w.setAttribute('line__2', 'opacity: 0');
+          wireContainer.appendChild(w);
+      }
+
+      // --- SEARCH UI FUNCTIONS ---
+      function openScanner() {
+          document.getElementById('main-menu').style.display = 'none';
+          document.getElementById('scanner-ui').style.display = 'flex';
+      }
+      function closeScanner() {
+          document.getElementById('scanner-ui').style.display = 'none';
+          document.getElementById('main-menu').style.display = 'flex';
+          document.getElementById('result-card').style.display = 'none';
+      }
+      function performSearch() {
+          const query = document.getElementById('component-search').value.toLowerCase().trim();
+          const card = document.getElementById('result-card');
+          
+          let result = null;
+          for(let key in toolDB) {
+              if (query.includes(key) || key.includes(query)) {
+                  result = toolDB[key];
+                  break;
+              }
+          }
+
+          if(result) {
+              card.innerHTML = `<div class="res-title">${result.title}</div><div class="res-desc">${result.desc}</div>`;
+              card.style.display = 'block';
+          } else {
+              card.innerHTML = `<div class="res-title">Not Found</div><div class="res-desc">Try searching for "Cutter", "Battery", "Resistor", etc.</div>`;
+              card.style.display = 'block';
+          }
+      }
+
+      // --- SCATTER LOGIC ---
+      function getRandomOutsidePos() {
+          let x, z;
+          const range = 2.4; 
+          const bbX = 1.3;   
+          const bbZ = 0.9;   
+          do {
+              x = (Math.random() - 0.5) * 2 * range;
+              z = (Math.random() - 0.5) * 2 * range;
+          } while (Math.abs(x) < bbX && Math.abs(z) < bbZ);
+          return { x: x, y: 0.2, z: z };
+      }
+
+      function scatterComponents(level) {
+          let ids = [];
+          if(level === 1) ids = ['battery', 'switch', 'resistor1', 'led1'];
+          else if(level === 2) ids = ['battery', 'switch', 'resistor1', 'resistor2', 'led1', 'led2'];
+          else if(level === 3) ids = ['battery', 'switch', 'resistor1', 'resistor2', 'led1', 'buzzer']; 
+          
+          ids.forEach(id => {
+              const el = document.getElementById(id);
+              const pos = getRandomOutsidePos();
+              el.object3D.position.set(pos.x, pos.y, pos.z);
+              
+              const randomSteps = Math.floor(Math.random() * 4);
+              const rad = randomSteps * (Math.PI / 2);
+              if (id.includes('resistor')) {
+                  el.object3D.rotation.set(0, rad, Math.PI / 2);
+              } else {
+                  el.object3D.rotation.set(0, rad, 0);
+              }
+          });
+      }
+
+      // --- GAME FLOW ---
+      function startCourse(mode) {
+          document.getElementById('main-menu').style.display = 'none';
+          document.querySelectorAll('.game-ui').forEach(el => {
+              el.style.display = 'flex';
+              setTimeout(() => el.classList.add('visible'), 10);
+          });
+          if (mode === 'all') { gameMode = 'all'; currentLevel = 1; } 
+          else { gameMode = 'single'; currentLevel = mode; }
+          loadLevelConfig();
+      }
+
+      function showMainMenu() {
+          stopBuzzer();
+          document.getElementById('celebration-modal').style.display = 'none';
+          document.querySelectorAll('.game-ui').forEach(el => {
+              el.classList.remove('visible');
+              setTimeout(() => el.style.display = 'none', 500);
+          });
+          document.getElementById('main-menu').style.display = 'flex';
+      }
+
+      function closeModal() {
+          document.getElementById('celebration-modal').style.display = 'none';
+      }
+
+      function handleLevelComplete() {
+          document.getElementById('celebration-modal').style.display = 'none';
+          isSwitchOn = false; updateSwitchVisuals();
+          if (gameMode === 'single') { showMainMenu(); } 
+          else { 
+              currentLevel++; 
+              if (currentLevel > 3) showMainMenu(); else loadLevelConfig(); 
+          }
+      }
+
+      function loadLevelConfig() {
+          stopBuzzer();
+          isSwitchOn = false;
+          updateSwitchVisuals();
+          
+          document.getElementById('resistor2').setAttribute('visible', 'false');
+          document.getElementById('led2').setAttribute('visible', 'false');
+          document.getElementById('led1').setAttribute('visible', 'true');
+          document.getElementById('buzzer').setAttribute('visible', 'false');
+          
+          document.getElementById('btn-resistor2').style.display = "none";
+          document.getElementById('btn-led2').style.display = "none";
+          document.getElementById('btn-buzzer').style.display = "none";
+
+          const badge = document.getElementById('level-badge');
+          const txt = document.getElementById('status-text');
+
+          if(currentLevel === 1) {
+             badge.innerText = "LVL 1"; txt.innerText = "Series Circuit";
+          } 
+          else if(currentLevel === 2) {
+             badge.innerText = "LVL 2"; txt.innerText = "Parallel Circuit";
+             document.getElementById('btn-resistor2').style.display = "flex";
+             document.getElementById('btn-led2').style.display = "flex";
+             document.getElementById('resistor2').setAttribute('visible', 'true');
+             document.getElementById('led2').setAttribute('visible', 'true');
+          } 
+          else if(currentLevel === 3) {
+             badge.innerText = "LVL 3"; txt.innerText = "Buzzer + LED + 1kΩ";
+             
+             document.getElementById('btn-buzzer').style.display = "flex";
+             document.getElementById('btn-resistor2').style.display = "flex";
+             document.getElementById('btn-resistor2').innerHTML = "<span>〰️</span><small>1k Ω</small>";
+             
+             document.getElementById('led1').setAttribute('visible', 'true');
+             document.getElementById('buzzer').setAttribute('visible', 'true');
+             
+             resistances.resistor2 = 1000;
+             document.getElementById('resistor2').setAttribute('visible', 'true');
+             document.getElementById('r2-band1').setAttribute('color', 'brown'); 
+             document.getElementById('r2-band2').setAttribute('color', 'black'); 
+             document.getElementById('r2-band3').setAttribute('color', 'red');   
+          }
+
+          scatterComponents(currentLevel);
+          validate(true);
+      }
+
+      // --- INTERACTION ---
+      function updateStatus(msg, icon="ℹ️", type="normal") {
+          const pill = document.getElementById('status-pill');
+          document.getElementById('status-text').innerText = msg;
+          if(type === 'success') pill.style.borderColor = "var(--success-color)";
+          else if(type === 'error') pill.style.borderColor = "var(--danger-color)";
+          else pill.style.borderColor = "rgba(255,255,255,0.1)";
+      }
+      function isInsideBreadboard(pos) { return Math.abs(pos.x) < 1.2 && Math.abs(pos.z) < 0.8; }
+      function toggleMeterMode() {
+          meterMode = (meterMode === 'mA') ? 'V' : 'mA';
+          document.getElementById('meter-label').innerText = (meterMode === 'mA') ? "CURRENT (mA)" : "VOLTAGE (V)";
+          validate(true);
+      }
+      function selectPart(id) {
+        activePartId = id;
+        document.querySelectorAll('.comp-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('btn-' + id).classList.add('active');
+        document.getElementById('btn-toggle-switch').style.display = (id === 'switch') ? 'flex' : 'none';
+        const sliderBox = document.getElementById('resistor-box');
+        if(id.includes('resistor')) {
+            sliderBox.style.display = 'block';
+            document.getElementById('res-label').innerText = (id === 'resistor2' && currentLevel === 3) ? 'RES 1kΩ' : 'RESISTOR';
+            document.getElementById('res-slider').value = resistances[id];
+            document.getElementById('res-val').innerText = resistances[id] + " Ω";
+        } else { sliderBox.style.display = 'none'; }
+      }
+      function updateResistance(val) {
+        if(activePartId && activePartId.includes('resistor')) {
+            resistances[activePartId] = parseInt(val);
+            document.getElementById('res-val').innerText = resistances[activePartId] + " Ω";
+            if(isSwitchOn) validate(true); 
+        }
+      }
+      function updateSwitchVisuals() {
+          const btnObj = document.getElementById('switch-button');
+          const uiBtn = document.getElementById('btn-toggle-switch');
+          if(isSwitchOn) {
+            btnObj.setAttribute('color', '#2ecc71'); btnObj.setAttribute('position', '0 0.12 0'); 
+            uiBtn.style.backgroundColor = "rgba(16, 185, 129, 0.2)"; uiBtn.style.borderColor = "var(--success-color)";
+            uiBtn.innerHTML = "<span>🟢</span> ON";
+            updateStatus("Circuit Closed", "⚡");
+          } else {
+            btnObj.setAttribute('color', '#e74c3c'); btnObj.setAttribute('position', '0 0.16 0'); 
+            uiBtn.style.backgroundColor = "var(--glass-bg)"; uiBtn.style.borderColor = "var(--glass-border)";
+            uiBtn.innerHTML = "<span>🔘</span> PUSH";
+            updateStatus("Circuit Open", "🚫");
+          }
+      }
+      function toggleSwitch() {
+        isSwitchOn = !isSwitchOn;
+        try { clickSound.currentTime = 0; clickSound.play(); } catch(e){}
+        updateSwitchVisuals();
+        validate(!isSwitchOn);
+      }
+      function movePart(direction) {
+        if (!activePartId) { updateStatus("Select a part first!", "⚠️", "error"); return; }
+        const mesh = document.getElementById(activePartId).object3D;
+        let newX = mesh.position.x; let newZ = mesh.position.z;
+        if (direction === 'up')    newZ -= gridSize;
+        if (direction === 'down')  newZ += gridSize;
+        if (direction === 'left')  newX -= gridSize;
+        if (direction === 'right') newX += gridSize;
+        newX = Math.max(-3.0, Math.min(3.0, newX)); newZ = Math.max(-2.5, Math.min(2.5, newZ));
+        mesh.position.x = newX; mesh.position.z = newZ;
+        try { clickSound.currentTime = 0; clickSound.play(); } catch(e){}
+        validate(true); 
+      }
+      function rotatePart() {
+        if (!activePartId) { updateStatus("Select a part first!", "⚠️", "error"); return; }
+        const mesh = document.getElementById(activePartId).object3D;
+        mesh.rotation.y += Math.PI / 2;
+        try { clickSound.currentTime = 0; clickSound.play(); } catch(e){}
+        validate(true); 
+      }
+      function toggleExplode() {
+        isExploded = !isExploded;
+        const animate = (id, val) => {
+            const el = document.getElementById(id);
+            if(el) el.setAttribute('animation', `property: position; to: ${val}; dur: 500; easing: easeOutQuad`);
+        };
+        const yBase = isExploded ? 0.3 : 0.05;
+        const ySw = isExploded ? 0.45 : (isSwitchOn ? 0.12 : 0.16);
+        animate('switch-button', `0 ${ySw} 0`);
+        animate('led1-bulb', `0 ${yBase} 0`); animate('led2-bulb', `0 ${yBase} 0`);
+        ['r1', 'r2'].forEach(p => {
+             if(document.getElementById(p+'-band1')) {
+                 animate(p+'-band1', isExploded ? '0 0.15 0' : '0 0.05 0');
+                 animate(p+'-band3', isExploded ? '0 -0.15 0' : '0 -0.05 0');
+             }
+        });
+        const buz = document.getElementById('buzzer');
+        if(buz && buz.getAttribute('visible')) {
+            const cur = buz.object3D.position;
+            animate('buzzer', isExploded ? `${cur.x} 0.5 ${cur.z}` : `${cur.x} 0.2 ${cur.z}`);
+        }
+      }
+      
+      // HELPER: RESET ACTIVE COMPONENTS (Fixes LED glow issue)
+      function resetActiveComponents() {
+        ['led1', 'led2'].forEach(id => {
+            const glow = document.getElementById(id + '-glow');
+            const bulb = document.getElementById(id + '-bulb');
+            if(glow) glow.setAttribute('intensity', 0);
+            if(bulb) bulb.removeAttribute('material');
+        });
+        stopBuzzer();
+      }
+
+      function validate(silent = false) {
+        let ids = [];
+        if(currentLevel === 1) ids = ['battery', 'switch', 'resistor1', 'led1'];
+        else if(currentLevel === 2) ids = ['battery', 'switch', 'resistor1', 'resistor2', 'led1', 'led2'];
+        else if(currentLevel === 3) ids = ['battery', 'switch', 'resistor1', 'resistor2', 'led1', 'buzzer'];
+        
+        const pos = {}; let allOnBoard = true;
+        ids.forEach(id => {
+            const el = document.getElementById(id); const p = el.object3D.position; pos[id] = p;
+            if(!isInsideBreadboard(p)) allOnBoard = false;
+        });
+        for(let i=0; i<15; i++) {
+             const w = document.getElementById('wire'+i);
+             w.setAttribute('line', 'opacity: 0'); w.setAttribute('line__2', 'opacity: 0');
+        }
+        
+        // BUG FIX: Turn off LEDs if parts are missing/off board
+        if(!allOnBoard) { 
+            updateStatus("⚠️ PLACE PARTS ON BREADBOARD", "🛑", "error"); 
+            resetActiveComponents(); // Forces LED/Buzzer OFF
+            return; 
+        }
+        
+        const draw = (idx, p1, p2, active) => {
+            const dist = p1.distanceTo(p2); const el = document.getElementById('wire'+idx);
+            if(dist < connectDist) {
+                const color = active ? '#2ecc71' : '#333'; const y = 0.15; // Raised wire height
+                el.setAttribute('line', `start: ${p1.x} ${y} ${p1.z}; end: ${p1.x} ${y} ${p2.z}; color: ${color}; opacity: 1`);
+                el.setAttribute('line__2', `start: ${p1.x} ${y} ${p2.z}; end: ${p2.x} ${y} ${p2.z}; color: ${color}; opacity: 1`);
+            }
+            return dist < connectDist;
+        };
+        let circuitComplete = false; let totalCurrent = 0; let circuitVoltage = 0;
+        
+        if (currentLevel === 1) { 
+            const l1 = draw(0, pos.battery, pos.switch, isSwitchOn);
+            const l2 = draw(1, pos.switch, pos.resistor1, isSwitchOn);
+            const l3 = draw(2, pos.resistor1, pos.led1, isSwitchOn);
+            const l4 = draw(3, pos.led1, pos.battery, isSwitchOn);
+            circuitComplete = l1 && l2 && l3 && l4;
+            if(circuitComplete && isSwitchOn) {
+                let i = 7.0 / resistances.resistor1; totalCurrent = i * 1000; circuitVoltage = 7.0; 
+                let intensity = Math.min(5, i * 150);
+                document.getElementById('led1-glow').setAttribute('intensity', intensity);
+                document.getElementById('led1-bulb').setAttribute('material', `emissive: #ff0000; emissiveIntensity: ${intensity}`);
+            } else {
+                resetActiveComponents();
+            }
+        } else if (currentLevel === 2) {
+            const main = draw(0, pos.battery, pos.switch, isSwitchOn);
+            const b1 = draw(1, pos.switch, pos.resistor1, isSwitchOn) && draw(2, pos.resistor1, pos.led1, isSwitchOn) && draw(3, pos.led1, pos.battery, isSwitchOn);
+            const b2 = draw(4, pos.switch, pos.resistor2, isSwitchOn) && draw(5, pos.resistor2, pos.led2, isSwitchOn) && draw(6, pos.led2, pos.battery, isSwitchOn);
+            circuitComplete = (b1 || b2) && main;
+            if(circuitComplete && isSwitchOn) circuitVoltage = 7.0;
+            
+            // Only light up if specific branch is complete
+            if (isSwitchOn) {
+                const updateLED = (num, valid, res) => {
+                    if(valid && main) {
+                        let i = 7.0 / res; totalCurrent += i * 1000;
+                        let intensity = Math.min(5, i * 150);
+                        document.getElementById(`led${num}-glow`).setAttribute('intensity', intensity);
+                        document.getElementById(`led${num}-bulb`).setAttribute('material', `emissive: #ff0000; emissiveIntensity: ${intensity}`);
+                    } else {
+                        document.getElementById(`led${num}-glow`).setAttribute('intensity', 0);
+                        document.getElementById(`led${num}-bulb`).removeAttribute('material');
+                    }
+                };
+                updateLED(1, b1, resistances.resistor1); updateLED(2, b2, resistances.resistor2);
+            } else {
+                resetActiveComponents();
+            }
+
+        } else if (currentLevel === 3) {
+             // Series: Bat -> Sw -> Res1 -> LED -> Res2(1k) -> Buzzer -> Bat
+             const l1 = draw(0, pos.battery, pos.switch, isSwitchOn);
+             const l2 = draw(1, pos.switch, pos.resistor1, isSwitchOn);
+             const l3 = draw(2, pos.resistor1, pos.led1, isSwitchOn);
+             const l4 = draw(3, pos.led1, pos.resistor2, isSwitchOn);
+             const l5 = draw(4, pos.resistor2, pos.buzzer, isSwitchOn);
+             const l6 = draw(5, pos.buzzer, pos.battery, isSwitchOn);
+             
+             circuitComplete = l1 && l2 && l3 && l4 && l5 && l6;
+
+             if(circuitComplete && isSwitchOn) {
+                 startBuzzer(); 
+                 let rTotal = resistances.resistor1 + resistances.resistor2;
+                 let i = 7.0 / rTotal; 
+                 totalCurrent = i * 1000; circuitVoltage = 7.0; 
+                 
+                 let intensity = Math.min(5, i * 300); 
+                 document.getElementById('led1-glow').setAttribute('intensity', intensity);
+                 document.getElementById('led1-bulb').setAttribute('material', `emissive: #ff0000; emissiveIntensity: ${intensity}`);
+                 
+                 updateStatus("Circuit Active!", "🔊", "success");
+             } else { 
+                 resetActiveComponents();
+             }
+        }
+
+        const lcd = document.getElementById('lcd-screen');
+        if(meterMode === 'mA') { lcd.innerText = totalCurrent.toFixed(1) + " mA"; lcd.style.color = (totalCurrent > 0) ? "#111" : "#555"; } 
+        else { lcd.innerText = circuitVoltage.toFixed(1) + " V"; lcd.style.color = (circuitVoltage > 0) ? "#111" : "#555"; }
+        
+        if(circuitComplete && isSwitchOn && !silent) {
+            const modal = document.getElementById('celebration-modal'); 
+            const btn = document.getElementById('modal-action-btn');
+            
+            if(modal.style.display !== 'flex') { 
+                if (gameMode === 'single') { document.getElementById('modal-msg').innerText = "Experiment Complete!"; btn.innerText = "BACK TO MENU 🏠"; } 
+                else { 
+                    if (currentLevel === 3) { document.getElementById('modal-msg').innerText = "All Levels Mastered!"; btn.innerText = "FINISH 🏠"; } 
+                    else { document.getElementById('modal-msg').innerText = "Excellent work!"; btn.innerText = "NEXT LEVEL ➡️"; }
+                }
+                modal.style.display = 'flex';
+            }
+        } else if (isSwitchOn && !circuitComplete) { updateStatus("Incomplete Connections", "❌", "error"); }
       }
     </script>
   </body>
